@@ -1,6 +1,3 @@
-
-# Author : Iroiso => http://twitter.com/iroiso 
-
 """
 Postify is a simple, small and fast program that polls a database connected to
 Gammu (wammu.eu) for new messages, JSONifies them and posts them
@@ -33,110 +30,102 @@ Licence (MIT)
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
     THE SOFTWARE.
 """
-
 import logging
-import sqlite3 as sqlite
+from httplib import HTTPConnection, HTTPException
 from string import Template
-from httplib import HTTPException,HTTPConnection
+import urlparse
 
 
 
-# To-do configure logging here.
-# To-do review the post function, write the mark function, write unittests
+# Module setup
+logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s : %(funcName)s ->  %(message)s" )
+
+    
+# Module data
+__author__ = "Iroiso Ikpokonte <http://twitter.com/iroiso>"
+__version__ = "0.5.0"
+__all__ = ["post",]
 
 
-# Module level variables
-required = ["address", "dbFile"]
-settings = {}
-template = Template(" Message : { sender : $SenderNumber, text : $Text , smsc : $SMSCNumber, date : $ReceivingDateTime } ") # Template for JSONifying
-headers = {"Content-type": "application/json", "Accept" : "text/plain"}
-
+# Module variables
+template = template = Template(" Message : { sender : $SenderNumber, text : $Text , smsc : $SMSCNumber, date : $ReceivingDateTime } ")
+header = {"Content-type": "application/json", "Accept" : "text/plain"}
 
 
 
 # Module level functions
-def init(dictionary):
-    """ Sets up postify with  @dictionary, you have to call this method before you use this module """
-    logging.info("Verifying settings dictionary")
-    for e in required:
-        assert settings[e]
-    settings = dictionary
+def post( dictionary , address):
+    """ Do a HTTP POST to the specified address with dictionary  as its JSONified payload
+        @return boolean to signify success or failure
+    """
+    logging.info("Posting: {0} to {1}".format(dictionary, address))
+    try:
+        # Do template substituiton
+        logging.debug("Doing substitution")
+        posted = False
+        body = template.substitute(dictionary)
 
+        # Do post
+        logging.debug("Finished substitution, Doing Post ")
+        URL = urlparse.urlparse(address)
+        connection = HTTPConnection(URL.netloc)
+        connection.request("POST", URL.path, body, header)
 
+        # Read response
+        logging.debug("Finished Post; Reading and verifying Response")
+        response = connection.getresponse()
 
-# A simple routine that shows the expressive power of python
-def run( ):
-    """ Main routine: read all unprocessed messages and post them """
-    for i in each():
-        logging.info("Trying to post a new message: %s " % i )
-        post(row = i)
-        
+        if response.status in (200,201,202,):
             
+            logging.info("Response Code : {status} , Body : {body},".format(status = response.status, body = str(response.read())))
+            posted = True
+            return True
+        
+        else:
+            logging.debug("Response not OK..")
+            return False
+        
+    # Clean up and exception handling
+    except(ValueError,KeyError) as TemplateError:
+        logging.error("An error occurred during the Template Substitution : %s " % TemplateError )
+        return False
+
+    except (HTTPException) as PostError:
+        logging.error("An error occured when posting the message to {address}: {error}".format(address = address, error = PostError))
+        return False
+
+    finally:
+        logging.debug("Cleaning up after HTTP POST")
+        try:
+            connection.close()
+            if not posted:
+                return False
+            
+        except UnboundLocalError: # Catch exception when socket is not bound
+            logging.error("Error closing HTTP Connection, Not Bound")
+        
     
+
 
 def each():
-    """ Read each unprocessed message from the backend and yield it
-        @return dictionary
-    """
-    connection = sqlite.connect(settings["dbFile"])
-    connection.row_factory = sqlite.Row
-    cursor = connection.cursor()
-    cursor.execute("select * from inbox where Processed = false order by ReceivingDateTime")
-    
-    logging.info("Found : %s new messages \n" % cursor.rowcount )
-    for row in cursor:
-        yield row   # release them one by one
-
-    connection.close()
+    """ Reads row by row from Mysql and yields a useful dictionary """
+    pass
+        
+def run():
+    """ Main routine of this script """
+    pass
 
 
-def mark(id):
-    """ Marks the message with this ID as processed """
-    logging.info("Marking message with ID: %s as Processed" % str(id))
-    
-    connection = sqlite.connect(settings["dbFile"])
-    cursor = connection.cursor()
-    cursor.execute("update inbox set Processed = true where id = ?", (id,))
-    connection.commit()
-    connection.close()
 
 
-def post( row ):
-    """ Serialize and Post the contents in body to the url provided above
-        @param row = sqlite3.Row which is a dict like object
-    """
-    try:
-        # preliminary stuff
-        logging.info("Converting Row to JSON : %s" % row.keys())
-        body = template.substitute(row)  # catch an exception for this guy
-        logging.info("Conversion complete...")
 
-        # post here
-        logging.info("Posting to the remote address")
-        url = settings[address]  # DOES NOT VALIDATE URLS !!!
-        connection = HTTPConnection(url)
-        connection.request("POST", body, headers)
-        logging.info("Post successful; Reading response")
-        response = connection.getresponse()
-        logging.info("Received response: %s : %s" % (response.status,response.reason))
+
+
+
+
+
+
+
+
 
         
-    except (KeyError,ValueError, HTTPException) as e:
-        # do clean up here
-        logging.error("An Exception occured during post : %s " % str(e))
-        logging.info("Falling back because of the exception")
-        fallback(row["ID"])
-        
-    finally:
-        # First things first.
-        connection.close()
-        # check if I got the correct response, if yes mark message..
-        if response.status in (200,201,202,):
-            logging.info("Marking processed message")
-            mark(row["ID"])
-        else:
-            logging.error("Oops, Your postal address did not return an appropriate response")
-    
-
-if __name__ == "__main__":
-    run()

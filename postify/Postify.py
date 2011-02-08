@@ -49,7 +49,7 @@ __all__ = ["post",]
 
 
 # Module variables
-template = template = Template(u""" Message : { sender : "$SenderNumber", text : "$Text", smsc : "$SMSCNumber", date : "$ReceivingDateTime" } """)
+template = template = Template(u""" "Message" : { "sender" : "$SenderNumber", "text" : "$Text", "smsc" : "$SMSCNumber", "date" : "$ReceivingDateTime" } """)
 header = {"Content-type": "application/json", "Accept" : "text/plain"}
 settings = {"user" : None , "password" : None , "host" : None , "db" : None }  # Initialized from configuration file at runtime.
 

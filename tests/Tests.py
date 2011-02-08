@@ -34,14 +34,14 @@ Licence (MIT)
 
 
 from unittest import *
-from bottle import Bottle, run, abort
+from bottle import Bottle, run, abort,request
 from postify import *
 import logging
 
 
 # TestSuite
 def suite():
-    return TestLoader().loadTestsFromNames(["Tests.TestPost",])
+    return TestLoader().loadTestsFromNames(["Tests.TestPost", "Tests.TestDbFunctions"])
 
 
 # Module configuration
@@ -56,6 +56,7 @@ dictionary = { "SenderNumber" : "UBA", "SMSCNumber" : "Fake", "Text" : "We're dy
 def acceptPosts():
     """ Accepts posts to this bottle server """
     print "Got Post..Yipee!"
+    print "Request Body : " + request.body.read()
     return "Post Accepted"
 
 
@@ -98,5 +99,16 @@ class TestPost(TestCase):
 
 class TestDbFunctions(TestCase):
     """ Test functions that deal with the database backend """
-    pass
+
+    def setUp(self):
+        """ Setup a MySQL database with an inbox table """
+        pass
+
+    def testEach(self):
+        """ Tests if the dictionary dictionary works """
+        pass
+
+    def testTag(self):
+        """ Tests if the tag function works """
+        pass
      

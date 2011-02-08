@@ -94,5 +94,9 @@ class TestPost(TestCase):
     def testUnavailable(self):
         """ Test an unavailable URL """
         self.assertFalse(post(dictionary, "http://localhost:9000"))
-
         
+
+class TestDbFunctions(TestCase):
+    """ Test functions that deal with the database backend """
+    pass
+     

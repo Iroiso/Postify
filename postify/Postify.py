@@ -34,6 +34,7 @@ import logging
 from httplib import HTTPConnection, HTTPException
 from string import Template
 import urlparse
+import MySQLdb 
 
 
 
@@ -48,8 +49,9 @@ __all__ = ["post",]
 
 
 # Module variables
-template = template = Template(" Message : { sender : $SenderNumber, text : $Text , smsc : $SMSCNumber, date : $ReceivingDateTime } ")
+template = template = Template(u""" Message : { sender : "$SenderNumber", text : "$Text", smsc : "$SMSCNumber", date : "$ReceivingDateTime" } """)
 header = {"Content-type": "application/json", "Accept" : "text/plain"}
+settings = {"user" : None , "password" : None , "host" : None , "db" : None }  # Initialized from configuration file at runtime.
 
 
 
@@ -64,6 +66,7 @@ def post( dictionary , address):
         logging.debug("Doing substitution")
         posted = False
         body = template.substitute(dictionary)
+        logging.info("JSON : {body}".format(body = body))
 
         # Do post
         logging.debug("Finished substitution, Doing Post ")
@@ -107,10 +110,34 @@ def post( dictionary , address):
     
 
 
-def each():
-    """ Reads row by row from Mysql and yields a useful dictionary """
-    pass
+def each( host = settings['host'] , user = settings['user'], password = settings['password'], db = settings['db']):
+    """ Yields each unprocessed message as a dictionary
+        @yield dictionary
+    """
+    try:
+        logging.debug("Connecting to the database")
+        conn = MySQLdb.connect(host,user,password,db)
+        cursor = conn.cursor()
+
+        logging.debug("Selecting messages")
+        cursor.execute("SELECT ID,SenderNumber,Text,SMSCNumber,ReceivingDateTime FROM inbox WHERE processed = false")
+
+        logging.debug("Found : %s unprocessed messages" % cursor.rowcount)
+        for row in cursor:
+            yield { "ID": row[0], "SenderNumber": row[1], "Text" : row[2], "SMSCNumber" : row[3], "ReceivingDateTime": row[4]}
+    
+        conn.close()
         
+    except (MySQLdb.Error, MySQLdb.OperationalError) as DBError:
+        logging.error("MySQL is not responding : %s" % DBError )
+
+
+def tag(Id):
+    """ Tag a particular message as processed """
+    pass
+
+
+# The only point of coupling     
 def run():
     """ Main routine of this script """
     pass

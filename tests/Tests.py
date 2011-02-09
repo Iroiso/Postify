@@ -160,5 +160,6 @@ class TestDbFunctions(TestCase):
 
     def testTag(self):
         """ Tests if the tag function works """
-        pass
+        self.assertTrue(tag(1, host, user,passwd, "home"))
+        self.assertTrue(tag(2, host, user,passwd, "home"))
      

@@ -149,16 +149,19 @@ def tag(Id,host = settings['host'] , user = settings['user'], password = setting
         cursor = conn.cursor()
 
         logging.info("Updating database...")
-        cursor.execute("UPDATE inbox SET processed = true WHERE ID = %s" % Id)
+        cursor.execute("UPDATE {db}.inbox SET processed = 'true' WHERE ID = {Id}".format(db = db, Id = Id))
         logging.info("Number of rows updated : %s"  % cursor.rowcount)
 
         logging.debug("Commiting and closing MySQL connection")
         cursor.close()
         conn.commit()
         conn.close()
+
+        return True
         
     except MySQLdb.Error:
         logging.error("MySQL Error during operation %d : %s" % (DBError.args[0], DBError.args[1],))
+        return False
 
 
 # The only point of coupling     

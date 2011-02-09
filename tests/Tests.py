@@ -72,7 +72,8 @@ def denyPosts():
 
 
 
-# TestCases 
+# TestCases
+@skip("This one already passes, Moving along...")
 class TestPost(TestCase):
     """ Test the Post function """
 
@@ -97,19 +98,65 @@ class TestPost(TestCase):
     def testUnavailable(self):
         """ Test an unavailable URL """
         self.assertFalse(post(dictionary, "http://localhost:9000"))
-        
 
+
+# Database based tests
+import MySQLdb
+import datetime
+
+#credentials
+user = "test"
+passwd = "test"
+host = "localhost"
+db = "home"
 
 class TestDbFunctions(TestCase):
     """ Test functions that deal with the database backend """
 
     def setUp(self):
-        """ Setup a MySQL database with an inbox table """
-        pass
+        """ Setup a MySQL database with an inbox table and populate it """
+        try:
+            now = datetime.datetime.now()
+            conn = MySQLdb.connect(host,user,passwd,db)
+            cursor = conn.cursor()
+
+            print(" Dropping previous tables and creating new ones ")
+            
+            cursor.execute("DROP TABLE IF EXISTS home.inbox")
+            cursor.execute("""
+                CREATE TABLE home.inbox
+                (
+                    ID integer unsigned NOT NULL auto_increment,
+                    ReceivingDateTime timestamp NOT NULL default '0000-00-00 00:00:00',
+                    Text text NOT NULL,
+                    SenderNumber varchar(20) NOT NULL default '',
+                    SMSCNumber varchar(20) NOT NULL default '',
+                    processed enum('true','false') NOT NULL default 'false',
+                    PRIMARY KEY(ID)
+                    
+
+                )ENGINE = MyISAM;
+            """)
+
+            cursor.execute("""
+                INSERT INTO inbox (SenderNumber,Text,SMSCNumber,ReceivingDateTime)
+                VALUES
+                ('Etisalat', 'Welcome to the Easy Cliq Tariff Plan', 'Etisalat', CURRENT_TIMESTAMP),
+                ('UBA', 'Yeah, we know we suck, what can you do about it', 'UBA', CURRENT_TIMESTAMP)
+            """)
+            
+            cursor.close()
+            conn.commit()
+            conn.close()
+
+        except MySQLdb.Error as e:
+            print("MySQL Error during operation %d : %s" % (e.args[0], e.args[1],) )
 
     def testEach(self):
         """ Tests if the dictionary dictionary works """
-        pass
+        results = [row for row in each(host,user,passwd,"home")]
+        print results
+        self.assertEquals(2, len(results))
 
     def testTag(self):
         """ Tests if the tag function works """

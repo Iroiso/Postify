@@ -45,7 +45,7 @@ logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s : %(funcName)s 
 # Module data
 __author__ = "Iroiso Ikpokonte <http://twitter.com/iroiso>"
 __version__ = "0.5.0"
-__all__ = ["post",]
+__all__ = ["post","each","tag",]
 
 
 # Module variables
@@ -115,7 +115,7 @@ def each( host = settings['host'] , user = settings['user'], password = settings
         @yield dictionary like object
     """
     try:
-        
+        logging.debug("Got Parameters: {host}, {user}, {password} , {db}".format(user = user, password = password, db = db, host = host))
         logging.debug("Connecting to the database")
         
         # A DictCursor object is just appropriate instead of a home grown solution
@@ -123,17 +123,19 @@ def each( host = settings['host'] , user = settings['user'], password = settings
         cursor = conn.cursor(MySQLdb.cursors.DictCursor)
 
         logging.debug("Selecting messages")
-        cursor.execute("SELECT ID,SenderNumber,Text,SMSCNumber,ReceivingDateTime FROM inbox WHERE processed = false")
+        cursor.execute("SELECT * FROM {db}.inbox WHERE processed = 'false'".format(db = db))
         
         logging.debug("Found : %s unprocessed messages" % cursor.rowcount)
 
         for row in cursor:
             yield row
-    
+
+
+        cursor.close()
         conn.close()
         
     except (MySQLdb.Error, MySQLdb.OperationalError) as DBError:
-        logging.error("MySQL is not responding : %s" % DBError )
+        logging.error("MySQL Error during operation %d : %s" % (DBError.args[0], DBError.args[1],) )
 
 
 def tag(Id,host = settings['host'] , user = settings['user'], password = settings['password'], db = settings['db']):
@@ -156,7 +158,7 @@ def tag(Id,host = settings['host'] , user = settings['user'], password = setting
         conn.close()
         
     except MySQLdb.Error:
-        logging.error("An error occured when storing updating messages")
+        logging.error("MySQL Error during operation %d : %s" % (DBError.args[0], DBError.args[1],))
 
 
 # The only point of coupling     

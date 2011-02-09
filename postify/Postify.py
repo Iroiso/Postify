@@ -116,7 +116,7 @@ def each( host = settings['host'] , user = settings['user'], password = settings
     """
     try:
         logging.debug("Got Parameters: {host}, {user}, {password} , {db}".format(user = user, password = password, db = db, host = host))
-        logging.debug("Connecting to the database")
+        logging.debug("Connecting to MySQL")
         
         # A DictCursor object is just appropriate instead of a home grown solution
         conn = MySQLdb.connect(host,user,password,db)
@@ -130,12 +130,12 @@ def each( host = settings['host'] , user = settings['user'], password = settings
         for row in cursor:
             yield row
 
-
+        logging.debug("Closing MySQL connection")
         cursor.close()
         conn.close()
         
-    except (MySQLdb.Error, MySQLdb.OperationalError) as DBError:
-        logging.error("MySQL Error during operation %d : %s" % (DBError.args[0], DBError.args[1],) )
+    except (MySQLdb.Error, MySQLdb.OperationalError) as e :
+        logging.error("MySQL Error during operation %d : %s" % (e.args[0], e.args[1],) )
 
 
 def tag(Id,host = settings['host'] , user = settings['user'], password = settings['password'], db = settings['db']):

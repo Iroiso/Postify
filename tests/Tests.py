@@ -73,7 +73,6 @@ def denyPosts():
 
 
 # TestCases
-@skip("This one already passes, Moving along...")
 class TestPost(TestCase):
     """ Test the Post function """
 
@@ -116,7 +115,7 @@ class TestDbFunctions(TestCase):
     def setUp(self):
         """ Setup a MySQL database with an inbox table and populate it """
         try:
-            now = datetime.datetime.now()
+            
             conn = MySQLdb.connect(host,user,passwd,db)
             cursor = conn.cursor()
 
@@ -158,8 +157,29 @@ class TestDbFunctions(TestCase):
         print results
         self.assertEquals(2, len(results))
 
+
     def testTag(self):
         """ Tests if the tag function works """
         self.assertTrue(tag(1, host, user,passwd, "home"))
         self.assertTrue(tag(2, host, user,passwd, "home"))
+        print("Testing for consistency in behaviour")
+        self.assertEqual([], [row for row in each(host,user,passwd,"home")]) # each should return nothing...
+
+           
+    def tearDown(self):
+        """ Drop database tables that were used during the test """
+        try:
+            print ''
+            print("Connecting to MySQL...")
+            conn = MySQLdb.connect(host,user,passwd,db)
+            cursor = conn.cursor()
+            print("Dropping test tables")
+            cursor.execute("DROP TABLE IF EXISTS home.inbox")
+            cursor.close()
+            conn.commit()
+            conn.close()
+            
+        except MySQLdb.Error:
+            print("Error cleaning up test tables")
+        
      

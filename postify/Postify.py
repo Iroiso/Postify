@@ -49,7 +49,7 @@ __all__ = ["post",]
 
 
 # Module variables
-template = template = Template(u""" "Message" : { "sender" : "$SenderNumber", "text" : "$Text", "smsc" : "$SMSCNumber", "date" : "$ReceivingDateTime" } """)
+template = Template(u""" "Message" : { "sender" : "$SenderNumber", "text" : "$Text", "smsc" : "$SMSCNumber", "date" : "$ReceivingDateTime" } """)
 header = {"Content-type": "application/json", "Accept" : "text/plain"}
 settings = {"user" : None , "password" : None , "host" : None , "db" : None }  # Initialized from configuration file at runtime.
 
@@ -112,19 +112,23 @@ def post( dictionary , address):
 
 def each( host = settings['host'] , user = settings['user'], password = settings['password'], db = settings['db']):
     """ Yields each unprocessed message as a dictionary
-        @yield dictionary
+        @yield dictionary like object
     """
     try:
+        
         logging.debug("Connecting to the database")
+        
+        # A DictCursor object is just appropriate instead of a home grown solution
         conn = MySQLdb.connect(host,user,password,db)
-        cursor = conn.cursor()
+        cursor = conn.cursor(MySQLdb.cursors.DictCursor)
 
         logging.debug("Selecting messages")
         cursor.execute("SELECT ID,SenderNumber,Text,SMSCNumber,ReceivingDateTime FROM inbox WHERE processed = false")
-
+        
         logging.debug("Found : %s unprocessed messages" % cursor.rowcount)
+
         for row in cursor:
-            yield { "ID": row[0], "SenderNumber": row[1], "Text" : row[2], "SMSCNumber" : row[3], "ReceivingDateTime": row[4]}
+            yield row
     
         conn.close()
         
@@ -132,15 +136,33 @@ def each( host = settings['host'] , user = settings['user'], password = settings
         logging.error("MySQL is not responding : %s" % DBError )
 
 
-def tag(Id):
+def tag(Id,host = settings['host'] , user = settings['user'], password = settings['password'], db = settings['db']):
     """ Tag a particular message as processed """
-    pass
+    try:
+        
+        logging.debug("Tagging Id : %s as Processed " % Id )
+
+        logging.debug("Connecting to MySQL...")
+        conn = MySQLdb.connect(host,user,password,db)
+        cursor = conn.cursor()
+
+        logging.info("Updating database...")
+        cursor.execute("UPDATE inbox SET processed = true WHERE ID = %s" % Id)
+        logging.info("Number of rows updated : %s"  % cursor.rowcount)
+
+        logging.debug("Commiting and closing MySQL connection")
+        cursor.close()
+        conn.commit()
+        conn.close()
+        
+    except MySQLdb.Error:
+        logging.error("An error occured when storing updating messages")
 
 
 # The only point of coupling     
 def run():
     """ Main routine of this script """
-    pass
+    
 
 
 

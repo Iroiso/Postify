@@ -46,10 +46,12 @@ def suite():
 
 # Module configuration
 logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s : %(funcName)s ->  %(message)s" )
-bottle = Bottle()
 dictionary = { "SenderNumber" : "UBA", "SMSCNumber" : "Fake", "Text" : "We're dying, please take all your money out" ,\
                "ReceivingDateTime": "From the Future" }
 
+
+# Test Server
+bottle = Bottle()
 
 # Test Server Functions
 @bottle.route("/accept", method = "POST" ) 
@@ -96,6 +98,7 @@ class TestPost(TestCase):
         """ Test an unavailable URL """
         self.assertFalse(post(dictionary, "http://localhost:9000"))
         
+
 
 class TestDbFunctions(TestCase):
     """ Test functions that deal with the database backend """

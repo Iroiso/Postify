@@ -33,13 +33,11 @@ Licence (MIT)
 
 import sys
 import os
-
+import postify
 
 base = os.getcwd()
 sys.path.append(base + "/tests")
-sys.path.append(base + "/postify")
 
-import postify
 import Tests
 from unittest import TextTestRunner
 

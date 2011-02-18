@@ -154,7 +154,6 @@ class TestDbFunctions(TestCase):
     def testEach(self):
         """ Tests if the dictionary dictionary works """
         results = [row for row in each(host,user,passwd,"home")]
-        print results
         self.assertEquals(2, len(results))
 
 

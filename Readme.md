@@ -45,7 +45,7 @@ $ Postify -i -r or Postify --install --run
 This will install and run postify ( Note: you can type each command line switch to the same effect )
 to remove type ( make sure that postify is not running ):
 
-$ Postify -u or Postify --uninstall
+$ Postify -c or Postify --clean
 
 ## Settings
 Postify uses the .ini file format. Look in the settings.ini file to see

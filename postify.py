@@ -49,7 +49,7 @@ from ConfigParser import ConfigParser
 # Upload to Drop box and call aliyu.
 
 # Module setup
-logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s : %(funcName)s ->  %(message)s" )
+logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s : %(funcName)s ->  %(message)s")
 
     
 # Module data
@@ -161,6 +161,7 @@ def tag(Id,host , user , password , db ):
 
 def run():
     """ Loops constantly and polls the data base for new messages every 5secs"""
+    print "Running Postify Loop..."
     import time
     if os.path.isfile(lock):
         logging.info("Another instance of Postify is running... shutting down")
@@ -175,14 +176,10 @@ def run():
     try:
         while True:
             # do read() and post()
-            parser = ConfigParser()
-            parser.read(configFile)
-            settings = dict(parser.items("settings"))
             address = settings["url"]  # I do not do URL validation
-    
-            for row in each(host = settings["host"], user = settings["user"], password = settings["password"], db = settings["db"]):
+            for row in each(host = settings["host"], user = settings["user"], password = settings["password"], db = settings["database"]):
                 if post(row, address):
-                    tag(row[ID], host = settings["host"], user = settings["user"], password = settings["password"], db = settings["db"])
+                    tag(row[ID], host = settings["host"], user = settings["user"], password = settings["password"], db = settings["database"])
             
             time.sleep(5) # sleep for 5secs
             
@@ -190,10 +187,15 @@ def run():
         if os.path.exists(lock): os.unlink(lock)
         
         
-        
-    
-
 # Installation and utility functions
+def init():
+    """ Module initialization routine """
+    global settings
+    logging.info("Configuring Postify Module...")
+    parser = ConfigParser()
+    parser.read(configFile)
+    settings = dict(parser.items("settings"))
+   
 def call( arguments ):
     """ Uses subprocess to invoke an external program; returns true or false signify success """
     try:
@@ -217,6 +219,7 @@ def main():
     parser.add_option("-r", "--run", action = "store_true", dest = "run", help = "Run Postify..")
     parser.add_option("-c", "--clean", action = "store_true", dest = "clean", help = "Put humpty together again")
     options, args = parser.parse_args()
+    init()
     # Command Processing
     if options.install:
         logging.info("About to commence install: ...")
@@ -239,7 +242,10 @@ def clean():
         removed = False   
         logging.info("Trying to remove the Windows service")
         removed = call([daemon,"-c" , baseSettings, "-u"])
-        logging.info("Windows service removed successfully")
+        if removed:
+            logging.info("Windows service removed successfully")
+        else:
+            logging.info("Something happened during clean")
         
         logging.info("Removing base directory")
         shutil.rmtree(baseDir)
@@ -254,15 +260,19 @@ def clean():
             logging.info("Clean could not complete successfully please contact the author")
             
 
+# SOME SERIOUS HACKING, PRIME CANDIDATE FOR REFACTORING
 def install():
     """ Installation procedure
     0. Check if lock file exists... Simply exit if true.
     1. Create base directory
-    2. Try and read settings file ( find modem, and construct global setting from it. )
-    3. Install the Gammu Service with that configuration
+    2. Read settings dictionary and construct Global configuration from it
+    2.5 Create Necessary MySQL tables 
+    3. Install the Gammu Service with Global configuration
     4. Start service
-    5. Create installed lock"""
+    5. Create installed lock and exit """
     import glob
+    import MySQLdb
+    
     logging.debug("Starting installation...")
     # 0.
     if os.path.exists(lock) or os.path.exists(installLock):
@@ -272,33 +282,50 @@ def install():
     if not os.path.isdir(baseDir):
         os.mkdir(baseDir) # I'm putting logs, lock files and configuration here !!!
     try:
-        # 2.
-        parser = ConfigParser()
-        parser.read(configFile)
-        found = dict(parser.items("settings"))# found [ (name,value), ...]
-        pathToModems = os.path.join(".", "conf", "modems", found["modem"])
+        # 2. BUG FIX -> moved reading configuration file to the initialization function
+##        print settings
+        pathToModems = os.path.join(".", "conf", "modems", settings["modem"])
         path = glob.glob(pathToModems + "*")[0]   # this should find only one match
         conf = ConfigParser()
+        
         # Fill the new ConfigParser object with information
         if os.path.exists(path):
             conf.read(path)  # the modem file should have the [gammu] section and constant values from the [smsd] section
-            for key,value in found.iteritems():
-                if key not in ["modem", "url"]:  # Filter unwanted information
+            for key,value in settings.iteritems():
+                if key == "port":
+                    conf.set("gammu", key, value )  # BUG FIX TO ACCOMODATE FOR ADDITION OF PORTS.
+                    continue         # Avoid Duplicate writing
+                
+                if key not in ["modem", "url"]:  # Filter information we should not write to the Global configuration file
                     conf.set("smsd",key, value)            
         else:
-            raise Exception("Modem's configuration could not be found")# just jump to the catch block
+            raise Exception("Modem's configuration could not be found") #just jump to the catch block
 
         # Write this configuration to Global config
         with open(baseSettings, 'wb') as File:
+            logging.info("Writing Global Configuration")
             conf.write(File)
             File.flush() # Just being defensive
-
+            
+        # 2.5 -> BUG FIX Create tables in MySQL
+        logging.info("Creating Database: Opening MySQL")
+        
+        db = MySQLdb.connect(settings['host'], settings['user'], settings['password'])
+        cursor = db.cursor()
+        logging.info("Creating Database: {db}".format(db = settings['database']))
+        cursor.execute("create database if not exists {db}".format(db = settings['database']))
+        cursor.execute("use {db}".format(db = settings['database']))
+        preparedb(db)
+        db.close()
+        
+                
         # 3. and 4. Create windows Service
+        logging.info("Creating windows service")
         if call([daemon, "-c", baseSettings , "-i"]) and call([daemon, '-c', baseSettings, '-s']):
             logging.debug("Service installed and Started Successfully")
     
         else:
-            logging.debug("Error occured when trying to create windows service")
+            logging.error("Error occured when trying to create windows service")
             raise Exception("Error when Creating and installing Windows service")
 
         # 5. Create Lock file
@@ -306,10 +333,203 @@ def install():
         open(installLock, 'w').close()
         
         logging.debug("Installation successful")
+        
     except Exception as e:
         # Do clean up here.
         logging.error("Exception occured during installation: " + str(e))
 
 
+############################### MYSQL SCRIPT HERE #####################################################
+def preparedb(connection):
+    """ Executes statements that will prepare the database for Gammu """
+    try:
+        cursor = connection.cursor()
+        logging.info("Preparing database")
+        cursor.execute("""
+            CREATE TABLE daemons (
+               Start text NOT NULL,
+               Info text NOT NULL
+            )ENGINE=MyISAM DEFAULT CHARSET=utf8;
+        """)
+        cursor.execute( """
+            CREATE TABLE gammu (
+              Version integer NOT NULL default '0'
+            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+        """)
+
+        cursor.execute(""" INSERT INTO gammu (Version) VALUES (12); """)
+        cursor.execute("""
+            CREATE TABLE inbox (
+              UpdatedInDB timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+              ReceivingDateTime timestamp NOT NULL default '0000-00-00 00:00:00',
+              Text text NOT NULL,
+              SenderNumber varchar(20) NOT NULL default '',
+              Coding enum('Default_No_Compression','Unicode_No_Compression','8bit','Default_Compression','Unicode_Compression') NOT NULL default 'Default_No_Compression',
+              UDH text NOT NULL,
+              SMSCNumber varchar(20) NOT NULL default '',
+              Class integer NOT NULL default '-1',
+              TextDecoded text NOT NULL,
+              ID integer unsigned NOT NULL auto_increment,
+              RecipientID text NOT NULL,
+              Processed enum('false','true') NOT NULL default 'false',
+              PRIMARY KEY ID (ID)
+              ) ENGINE=MyISAM DEFAULT CHARSET=utf8 AUTO_INCREMENT=1 ;
+        """ )
+        cursor.execute("""
+            CREATE TABLE outbox(
+              UpdatedInDB timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+              InsertIntoDB timestamp NOT NULL default '0000-00-00 00:00:00',
+              SendingDateTime timestamp NOT NULL default '0000-00-00 00:00:00',
+              Text text,
+              DestinationNumber varchar(20) NOT NULL default '',
+              Coding enum('Default_No_Compression','Unicode_No_Compression','8bit','Default_Compression','Unicode_Compression') NOT NULL default 'Default_No_Compression',
+              UDH text,
+              Class integer default '-1',
+              TextDecoded text NOT NULL,
+              ID integer unsigned NOT NULL auto_increment,
+              MultiPart enum('false','true') default 'false',
+              RelativeValidity integer default '-1',
+              SenderID varchar(255),
+              SendingTimeOut timestamp NULL default '0000-00-00 00:00:00',
+              DeliveryReport enum('default','yes','no') default 'default',
+              CreatorID text NOT NULL,
+              PRIMARY KEY ID(ID)
+          ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+        """)
+        cursor.execute(""" CREATE INDEX outbox_date ON outbox(SendingDateTime, SendingTimeOut); """)
+        cursor.execute(""" CREATE INDEX outbox_sender ON outbox(SenderID);  """)
+        cursor.execute("""
+            CREATE TABLE outbox_multipart(
+              Text text,
+              Coding enum('Default_No_Compression','Unicode_No_Compression','8bit','Default_Compression','Unicode_Compression') NOT NULL default 'Default_No_Compression',
+              UDH text,
+              Class integer default '-1',
+              TextDecoded text default NULL,
+              ID integer unsigned NOT NULL default '0',
+              SequencePosition integer NOT NULL default '1',
+              PRIMARY KEY(ID, SequencePosition)
+            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+        """)
+        cursor.execute("""
+            CREATE TABLE pbk (
+              ID integer NOT NULL auto_increment,
+              GroupID integer NOT NULL default '-1',
+              Name text NOT NULL,
+              Number text NOT NULL,
+              PRIMARY KEY (ID)
+            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+        """)
+        cursor.execute("""
+            CREATE TABLE pbk_groups (
+               Name text NOT NULL,
+               ID integer NOT NULL auto_increment,
+               PRIMARY KEY ID (ID)
+            ) ENGINE=MyISAM DEFAULT CHARSET=utf8 AUTO_INCREMENT=1 ;
+        """)
+        cursor.execute("""
+            CREATE TABLE phones (
+              ID text NOT NULL,
+              UpdatedInDB timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+              InsertIntoDB timestamp NOT NULL default '0000-00-00 00:00:00',
+              TimeOut timestamp NOT NULL default '0000-00-00 00:00:00',
+              Send enum('yes','no') NOT NULL default 'no',
+              Receive enum('yes','no') NOT NULL default 'no',
+              IMEI varchar(35) NOT NULL,
+              Client text NOT NULL,
+              Battery integer NOT NULL DEFAULT 0,
+              Signal integer NOT NULL DEFAULT 0,
+              Sent int NOT NULL DEFAULT 0,
+              Received int NOT NULL DEFAULT 0,
+              PRIMARY KEY (IMEI)
+            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+        """)
+        cursor.execute("""
+            CREATE TABLE sentitems(
+              UpdatedInDB timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
+              InsertIntoDB timestamp NOT NULL default '0000-00-00 00:00:00',
+              SendingDateTime timestamp NOT NULL default '0000-00-00 00:00:00',
+              DeliveryDateTime timestamp NULL,
+              Text text NOT NULL,
+              DestinationNumber varchar(20) NOT NULL default '',
+              Coding enum('Default_No_Compression','Unicode_No_Compression','8bit','Default_Compression','Unicode_Compression') NOT NULL default 'Default_No_Compression',
+              UDH text NOT NULL,
+              SMSCNumber varchar(20) NOT NULL default '',
+              Class integer NOT NULL default '-1',
+              TextDecoded text NOT NULL,
+              ID integer unsigned NOT NULL default '0',
+              SenderID varchar(255) NOT NULL,
+              SequencePosition integer NOT NULL default '1',
+              Status enum('SendingOK','SendingOKNoReport','SendingError','DeliveryOK','DeliveryFailed','DeliveryPending','DeliveryUnknown','Error') NOT NULL default 'SendingOK',
+              StatusError integer NOT NULL default '-1',
+              TPMR integer NOT NULL default '-1',
+              RelativeValidity integer NOT NULL default '-1',
+              CreatorID text NOT NULL,
+              PRIMARY KEY (ID, SequencePosition)
+            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+        """)
+        cursor.execute( """ CREATE INDEX sentitems_date ON sentitems(DeliveryDateTime); """)
+        cursor.execute( """ CREATE INDEX sentitems_tpmr ON sentitems(TPMR); """)
+        cursor.execute( """ CREATE INDEX sentitems_dest ON sentitems(DestinationNumber); """)
+        cursor.execute( """ CREATE INDEX sentitems_sender ON sentitems(SenderID); """)
+        cursor.execute( r"""
+            DELIMITER //
+            CREATE TRIGGER inbox_timestamp BEFORE INSERT ON inbox
+            FOR EACH ROW
+            BEGIN
+                IF NEW.ReceivingDateTime = '0000-00-00 00:00:00' THEN
+                    SET NEW.ReceivingDateTime = CURRENT_TIMESTAMP();
+                END IF;
+            END;//
+            CREATE TRIGGER outbox_timestamp BEFORE INSERT ON outbox
+            FOR EACH ROW
+            BEGIN
+                IF NEW.InsertIntoDB = '0000-00-00 00:00:00' THEN
+                    SET NEW.InsertIntoDB = CURRENT_TIMESTAMP();
+                END IF;
+                IF NEW.SendingDateTime = '0000-00-00 00:00:00' THEN
+                    SET NEW.SendingDateTime = CURRENT_TIMESTAMP();
+                END IF;
+                IF NEW.SendingTimeOut = '0000-00-00 00:00:00' THEN
+                    SET NEW.SendingTimeOut = CURRENT_TIMESTAMP();
+                END IF;
+            END;//
+            CREATE TRIGGER phones_timestamp BEFORE INSERT ON phones
+            FOR EACH ROW
+            BEGIN
+                IF NEW.InsertIntoDB = '0000-00-00 00:00:00' THEN
+                    SET NEW.InsertIntoDB = CURRENT_TIMESTAMP();
+                END IF;
+                IF NEW.TimeOut = '0000-00-00 00:00:00' THEN
+                    SET NEW.TimeOut = CURRENT_TIMESTAMP();
+                END IF;
+            END;//
+            CREATE TRIGGER sentitems_timestamp BEFORE INSERT ON sentitems
+            FOR EACH ROW
+            BEGIN
+                IF NEW.InsertIntoDB = '0000-00-00 00:00:00' THEN
+                    SET NEW.InsertIntoDB = CURRENT_TIMESTAMP();
+                END IF;
+                IF NEW.SendingDateTime = '0000-00-00 00:00:00' THEN
+                    SET NEW.SendingDateTime = CURRENT_TIMESTAMP();
+                END IF;
+            END;//
+            DELIMITER ;
+        """)
+        cursor.close()
+        conn.commit()
+        logging.debug("Successfully createad database profile")
+
+        
+    except Exception as e:
+        logging.info("An error occured during execution " + str(e) )
+        connection.rollback()
+        raise e
+        
+
+        
+######################### Main Routine #################################
 if __name__ == "__main__":
     main()

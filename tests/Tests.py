@@ -98,6 +98,10 @@ class TestPost(TestCase):
         """ Test an unavailable URL """
         self.assertFalse(post(dictionary, "http://localhost:9000"))
 
+    def testPostBin(self):
+        """ Test a postbin URL """
+        self.assertTrue(post(dictionary, "http://www.postbin.org/1j5rsco"))
+
 
 # Database based tests
 import MySQLdb
@@ -182,3 +186,4 @@ class TestDbFunctions(TestCase):
             print("Error cleaning up test tables")
         
      
+# Test installation and configuration functions

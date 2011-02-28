@@ -282,8 +282,6 @@ def install():
     if not os.path.isdir(baseDir):
         os.mkdir(baseDir) # I'm putting logs, lock files and configuration here !!!
     try:
-        # 2. BUG FIX -> moved reading configuration file to the initialization function
-##        print settings
         pathToModems = os.path.join(".", "conf", "modems", settings["modem"])
         path = glob.glob(pathToModems + "*")[0]   # this should find only one match
         conf = ConfigParser()
@@ -306,19 +304,15 @@ def install():
             logging.info("Writing Global Configuration")
             conf.write(File)
             File.flush() # Just being defensive
-            
-        # 2.5 -> BUG FIX Create tables in MySQL
+
         logging.info("Creating Database: Opening MySQL")
+        try:
+            db = MySQLdb.connect(settings['host'], settings['user'], settings['password'], settings['database'])
+            logging.info("Found data for previous installation, Moving along")
+        except:
+            logging.info("Preparing backend")
+            preparedb()
         
-        db = MySQLdb.connect(settings['host'], settings['user'], settings['password'])
-        cursor = db.cursor()
-        logging.info("Creating Database: {db}".format(db = settings['database']))
-        cursor.execute("create database if not exists {db}".format(db = settings['database']))
-        cursor.execute("use {db}".format(db = settings['database']))
-        preparedb(db)
-        db.close()
-        
-                
         # 3. and 4. Create windows Service
         logging.info("Creating windows service")
         if call([daemon, "-c", baseSettings , "-i"]) and call([daemon, '-c', baseSettings, '-s']):
@@ -337,197 +331,32 @@ def install():
     except Exception as e:
         # Do clean up here.
         logging.error("Exception occured during installation: " + str(e))
-
-
-############################### MYSQL SCRIPT HERE #####################################################
-def preparedb(connection):
-    """ Executes statements that will prepare the database for Gammu """
-    try:
-        cursor = connection.cursor()
-        logging.info("Preparing database")
-        cursor.execute("""
-            CREATE TABLE daemons (
-               Start text NOT NULL,
-               Info text NOT NULL
-            )ENGINE=MyISAM DEFAULT CHARSET=utf8;
-        """)
-        cursor.execute( """
-            CREATE TABLE gammu (
-              Version integer NOT NULL default '0'
-            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
-        """)
-
-        cursor.execute(""" INSERT INTO gammu (Version) VALUES (12); """)
-        cursor.execute("""
-            CREATE TABLE inbox (
-              UpdatedInDB timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
-              ReceivingDateTime timestamp NOT NULL default '0000-00-00 00:00:00',
-              Text text NOT NULL,
-              SenderNumber varchar(20) NOT NULL default '',
-              Coding enum('Default_No_Compression','Unicode_No_Compression','8bit','Default_Compression','Unicode_Compression') NOT NULL default 'Default_No_Compression',
-              UDH text NOT NULL,
-              SMSCNumber varchar(20) NOT NULL default '',
-              Class integer NOT NULL default '-1',
-              TextDecoded text NOT NULL,
-              ID integer unsigned NOT NULL auto_increment,
-              RecipientID text NOT NULL,
-              Processed enum('false','true') NOT NULL default 'false',
-              PRIMARY KEY ID (ID)
-              ) ENGINE=MyISAM DEFAULT CHARSET=utf8 AUTO_INCREMENT=1 ;
-        """ )
-        cursor.execute("""
-            CREATE TABLE outbox(
-              UpdatedInDB timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
-              InsertIntoDB timestamp NOT NULL default '0000-00-00 00:00:00',
-              SendingDateTime timestamp NOT NULL default '0000-00-00 00:00:00',
-              Text text,
-              DestinationNumber varchar(20) NOT NULL default '',
-              Coding enum('Default_No_Compression','Unicode_No_Compression','8bit','Default_Compression','Unicode_Compression') NOT NULL default 'Default_No_Compression',
-              UDH text,
-              Class integer default '-1',
-              TextDecoded text NOT NULL,
-              ID integer unsigned NOT NULL auto_increment,
-              MultiPart enum('false','true') default 'false',
-              RelativeValidity integer default '-1',
-              SenderID varchar(255),
-              SendingTimeOut timestamp NULL default '0000-00-00 00:00:00',
-              DeliveryReport enum('default','yes','no') default 'default',
-              CreatorID text NOT NULL,
-              PRIMARY KEY ID(ID)
-          ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
-
-        """)
-        cursor.execute(""" CREATE INDEX outbox_date ON outbox(SendingDateTime, SendingTimeOut); """)
-        cursor.execute(""" CREATE INDEX outbox_sender ON outbox(SenderID);  """)
-        cursor.execute("""
-            CREATE TABLE outbox_multipart(
-              Text text,
-              Coding enum('Default_No_Compression','Unicode_No_Compression','8bit','Default_Compression','Unicode_Compression') NOT NULL default 'Default_No_Compression',
-              UDH text,
-              Class integer default '-1',
-              TextDecoded text default NULL,
-              ID integer unsigned NOT NULL default '0',
-              SequencePosition integer NOT NULL default '1',
-              PRIMARY KEY(ID, SequencePosition)
-            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
-
-        """)
-        cursor.execute("""
-            CREATE TABLE pbk (
-              ID integer NOT NULL auto_increment,
-              GroupID integer NOT NULL default '-1',
-              Name text NOT NULL,
-              Number text NOT NULL,
-              PRIMARY KEY (ID)
-            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
-
-        """)
-        cursor.execute("""
-            CREATE TABLE pbk_groups (
-               Name text NOT NULL,
-               ID integer NOT NULL auto_increment,
-               PRIMARY KEY ID (ID)
-            ) ENGINE=MyISAM DEFAULT CHARSET=utf8 AUTO_INCREMENT=1 ;
-        """)
-        cursor.execute("""
-            CREATE TABLE phones (
-              ID text NOT NULL,
-              UpdatedInDB timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
-              InsertIntoDB timestamp NOT NULL default '0000-00-00 00:00:00',
-              TimeOut timestamp NOT NULL default '0000-00-00 00:00:00',
-              Send enum('yes','no') NOT NULL default 'no',
-              Receive enum('yes','no') NOT NULL default 'no',
-              IMEI varchar(35) NOT NULL,
-              Client text NOT NULL,
-              Battery integer NOT NULL DEFAULT 0,
-              Signal integer NOT NULL DEFAULT 0,
-              Sent int NOT NULL DEFAULT 0,
-              Received int NOT NULL DEFAULT 0,
-              PRIMARY KEY (IMEI)
-            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
-        """)
-        cursor.execute("""
-            CREATE TABLE sentitems(
-              UpdatedInDB timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
-              InsertIntoDB timestamp NOT NULL default '0000-00-00 00:00:00',
-              SendingDateTime timestamp NOT NULL default '0000-00-00 00:00:00',
-              DeliveryDateTime timestamp NULL,
-              Text text NOT NULL,
-              DestinationNumber varchar(20) NOT NULL default '',
-              Coding enum('Default_No_Compression','Unicode_No_Compression','8bit','Default_Compression','Unicode_Compression') NOT NULL default 'Default_No_Compression',
-              UDH text NOT NULL,
-              SMSCNumber varchar(20) NOT NULL default '',
-              Class integer NOT NULL default '-1',
-              TextDecoded text NOT NULL,
-              ID integer unsigned NOT NULL default '0',
-              SenderID varchar(255) NOT NULL,
-              SequencePosition integer NOT NULL default '1',
-              Status enum('SendingOK','SendingOKNoReport','SendingError','DeliveryOK','DeliveryFailed','DeliveryPending','DeliveryUnknown','Error') NOT NULL default 'SendingOK',
-              StatusError integer NOT NULL default '-1',
-              TPMR integer NOT NULL default '-1',
-              RelativeValidity integer NOT NULL default '-1',
-              CreatorID text NOT NULL,
-              PRIMARY KEY (ID, SequencePosition)
-            ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
-        """)
-        cursor.execute( """ CREATE INDEX sentitems_date ON sentitems(DeliveryDateTime); """)
-        cursor.execute( """ CREATE INDEX sentitems_tpmr ON sentitems(TPMR); """)
-        cursor.execute( """ CREATE INDEX sentitems_dest ON sentitems(DestinationNumber); """)
-        cursor.execute( """ CREATE INDEX sentitems_sender ON sentitems(SenderID); """)
-        cursor.execute( r"""
-            DELIMITER //
-            CREATE TRIGGER inbox_timestamp BEFORE INSERT ON inbox
-            FOR EACH ROW
-            BEGIN
-                IF NEW.ReceivingDateTime = '0000-00-00 00:00:00' THEN
-                    SET NEW.ReceivingDateTime = CURRENT_TIMESTAMP();
-                END IF;
-            END;//
-            CREATE TRIGGER outbox_timestamp BEFORE INSERT ON outbox
-            FOR EACH ROW
-            BEGIN
-                IF NEW.InsertIntoDB = '0000-00-00 00:00:00' THEN
-                    SET NEW.InsertIntoDB = CURRENT_TIMESTAMP();
-                END IF;
-                IF NEW.SendingDateTime = '0000-00-00 00:00:00' THEN
-                    SET NEW.SendingDateTime = CURRENT_TIMESTAMP();
-                END IF;
-                IF NEW.SendingTimeOut = '0000-00-00 00:00:00' THEN
-                    SET NEW.SendingTimeOut = CURRENT_TIMESTAMP();
-                END IF;
-            END;//
-            CREATE TRIGGER phones_timestamp BEFORE INSERT ON phones
-            FOR EACH ROW
-            BEGIN
-                IF NEW.InsertIntoDB = '0000-00-00 00:00:00' THEN
-                    SET NEW.InsertIntoDB = CURRENT_TIMESTAMP();
-                END IF;
-                IF NEW.TimeOut = '0000-00-00 00:00:00' THEN
-                    SET NEW.TimeOut = CURRENT_TIMESTAMP();
-                END IF;
-            END;//
-            CREATE TRIGGER sentitems_timestamp BEFORE INSERT ON sentitems
-            FOR EACH ROW
-            BEGIN
-                IF NEW.InsertIntoDB = '0000-00-00 00:00:00' THEN
-                    SET NEW.InsertIntoDB = CURRENT_TIMESTAMP();
-                END IF;
-                IF NEW.SendingDateTime = '0000-00-00 00:00:00' THEN
-                    SET NEW.SendingDateTime = CURRENT_TIMESTAMP();
-                END IF;
-            END;//
-            DELIMITER ;
-        """)
-        cursor.close()
-        conn.commit()
-        logging.debug("Successfully createad database profile")
-
         
-    except Exception as e:
-        logging.info("An error occured during execution " + str(e) )
-        connection.rollback()
-        raise e
-        
+
+def preparedb():
+    """ Prepare MySQL for gammu """
+    import sqlparse
+    logging.info("Creating Database: Opening MySQL")
+    db = MySQLdb.connect(settings['host'], settings['user'], settings['password'])
+    cursor = db.cursor()
+    logging.info("Creating Database: {db}".format(db = settings['database']))
+    cursor.execute("create database if not exists {db}".format(db = settings['database']))
+    cursor.execute("use {db}".format(db = settings['database']))
+
+    logging.info("Reading SQL script")
+    with open("./conf/scripts/mysql.sql") as scriptFile:  # Thanks to rescommunes at stackoverflow
+        sql = scriptFile.read()
+        sql_parts = sqlparse.split( sql )
+        for sql_part in sql_parts:
+            if sql_part.strip() ==  '':
+                continue
+            cursor.execute( sql_part )
+
+    cursor.close()
+    db.commit()
+    db.close()
+
+
 
         
 ######################### Main Routine #################################

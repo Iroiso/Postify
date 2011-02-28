@@ -14,10 +14,10 @@ $ git clone git://github.com/iroiso/postify.git
 Postify depends on the following modules most of which you can install using "pip"
 
 + [bottle](http://bottle.paws.de),
-+ [MySQLdb] (http://pypi.python.org/pypi/mysqldb)
++ [MySQLdb](http://pypi.python.org/pypi/mysqldb)
 + [py2exe](http://py2exe.org)
 +  Python 2.7+ 
-+ [MySQL Server ] (http://mysql.org)
++ [MySQL Server ](http://mysql.org)
 
 
 ## Building the bleeding edge
@@ -45,7 +45,7 @@ $ Postify -i -r or Postify --install --run
 This will install and run postify ( Note: you can type each command line switch to the same effect )
 to remove type ( make sure that postify is not running ):
 
-$ Postify -c or Postify --clean
+$ Postify -c or Postify --clean   #Don't worry your data is still safe.
 
 ## Settings
 Postify uses the .ini file format. Look in the settings.ini file to see

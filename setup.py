@@ -4,8 +4,7 @@ Setup: Generate Executable program using py2exe
 Postify is a simple, small and fast program that polls a database connected to
 Gammu (wammu.eu) for new messages, JSONifies them and posts them
 to a particular URL, It completely takes care of configuring the
-modems or phones, scheduling with cron and it comes with an inbuilt
-logging server that you can use to monitor activities as they occur.
+modems or phones.
 
 Homepage and documentation: http://github.com/iroiso/postify
 

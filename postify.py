@@ -2,8 +2,7 @@
 Postify is a simple, small and fast program that polls a database connected to
 Gammu (wammu.eu) for new messages, JSONifies them and posts them
 to a particular URL, It completely takes care of configuring the
-modems or phones, scheduling with cron and it comes with an inbuilt
-logging server that you can use to monitor activities as they occur.
+modems or phones.
 
 Homepage and documentation: http://github.com/iroiso/postify
 
@@ -72,7 +71,7 @@ usage = "Usage : %prog [options] ; for more detailed help read the documentation
 
 
 # Module variables
-template = Template(u""" "Message" : { "sender" : "$SenderNumber", "text" : "$Text", "smsc" : "$SMSCNumber", "date" : "$ReceivingDateTime" } """)
+template = Template(u""" "Message" : { "sender" : "$SenderNumber", "text" : "$TextDecoded", "smsc" : "$SMSCNumber", "date" : "$ReceivingDateTime" } """)
 header = {"Content-type": "application/json", "Accept" : "text/plain"}
 settings = {}  # Initialized from configuration file at runtime.
 
@@ -84,9 +83,11 @@ def post( dictionary , address):
         @return boolean to signify success or failure
     """
     try:
+##        logging.info("Posting %s to %s" % (dictionary,address))
         # Do template substituiton
         posted = False
         body = template.substitute(dictionary)
+        print body
 
         # Do post
         URL = urlparse.urlparse(address)
@@ -101,16 +102,16 @@ def post( dictionary , address):
             posted = True
             return True
         else:
-            logging.debug("Response not OK..")
+            logging.info("Response not OK..")
             return False
         
     # Clean up and exception handling
     except (ValueError,KeyError) as TemplateError:
-        logging.error("An error occurred during the Template Substitution : %s " % TemplateError )
+        logging.info("An error occurred during the Template Substitution : %s " % TemplateError )
         return False
 
     except (HTTPException) as PostError:
-        logging.error("An error occured when posting the message to {address}: {error}".format(address = address, error = PostError))
+        logging.info("An error occured when posting the message to {address}: {error}".format(address = address, error = PostError))
         return False
 
     finally:
@@ -119,7 +120,8 @@ def post( dictionary , address):
             if not posted:
                 return False
         except UnboundLocalError: # Catch exception when socket is not bound
-            logging.error("Error closing HTTP Connection, Not Bound")
+            logging.info("Error closing HTTP Connection, Not Bound")
+            return False
         
 
 def each( host , user , password , db ):
@@ -145,15 +147,17 @@ def each( host , user , password , db ):
 
 def tag(Id,host , user , password , db ):
     """ Tag a particular message as processed """
+    print ("In tag")
     try:
-        logging.debug("Tagging Id : %s as Processed " % Id )
+        logging.info("Tagging Id : %s as Processed " % Id )
         conn = MySQLdb.connect(host,user,password,db)
         cursor = conn.cursor()
         cursor.execute("UPDATE {db}.inbox SET processed = 'true' WHERE ID = {Id}".format(db = db, Id = Id))
         cursor.close()
         conn.commit()
         conn.close()
-        return True  
+        return True
+    
     except MySQLdb.Error as Error:
         logging.error("MySQL Error during operation %d : %s" % (Error.args[0], Error.args[1],))
         return False
@@ -161,8 +165,10 @@ def tag(Id,host , user , password , db ):
 
 def run():
     """ Loops constantly and polls the data base for new messages every 5secs"""
-    print "Running Postify Loop..."
     import time
+    import atexit
+
+    global lock
     if os.path.isfile(lock):
         logging.info("Another instance of Postify is running... shutting down")
         sys.exit(1)
@@ -174,17 +180,22 @@ def run():
     #acquire lock
     open(lock,'w').close()
     try:
+        print "Running Postify Loop..."
+        atexit.register(lambda: os.remove(lock))
         while True:
             # do read() and post()
             address = settings["url"]  # I do not do URL validation
             for row in each(host = settings["host"], user = settings["user"], password = settings["password"], db = settings["database"]):
                 if post(row, address):
-                    tag(row[ID], host = settings["host"], user = settings["user"], password = settings["password"], db = settings["database"])
+                    result = tag(row["ID"], host = settings["host"], user = settings["user"], password = settings["password"], db = settings["database"])
+                    if result: print("Message was successfully posted to the remote URL")
             
             time.sleep(5) # sleep for 5secs
             
     except KeyboardInterrupt:
-        if os.path.exists(lock): os.unlink(lock)
+        print "Closing Postify..."
+    
+    
         
         
 # Installation and utility functions
@@ -255,7 +266,7 @@ def clean():
 
     finally:
         if removed:
-            logging.info("Clean completed successfully. humpty is back together again")
+            logging.info("Clean completed successfully. humpty is back together again: Please restart your computer")
         else:
             logging.info("Clean could not complete successfully please contact the author")
             

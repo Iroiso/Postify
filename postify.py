@@ -60,18 +60,18 @@ __all__ = ["post","each","tag",]
 binDir = "./bin"
 daemon = os.path.join(binDir, "gammu-smsd")
 baseDir = r"C:\Users\{home}\Postify".format(home = getpass.getuser())
-lock = os.path.join(baseDir,"lock")
+logFile = os.path.join(baseDir,"Events.log")
 installLock = os.path.join(baseDir, "installed")  # Another lock to tell me if postify has been sucessfully installed before
 baseSettings = os.path.join(baseDir, "base.ini")  # Universal settings used by the daemon
 configFile = "settings.cfg"
 
 # setup, run, and remove from the console
 # Usage Variables
-usage = "Usage : %prog [options] ; for more detailed help read the documentation (Readme.md)"
+usage = " %prog [options] ; for more detailed help read the documentation (Readme.md)"
 
 
 # Module variables
-template = Template(u""" "Message" : { "sender" : "$SenderNumber", "text" : "$TextDecoded", "smsc" : "$SMSCNumber", "date" : "$ReceivingDateTime" } """)
+template = Template(u""""Message" : { "sender" : "$SenderNumber", "text" : "$TextDecoded", "smsc" : "$SMSCNumber", "date" : "$ReceivingDateTime" } """)
 header = {"Content-type": "application/json", "Accept" : "text/plain"}
 settings = {}  # Initialized from configuration file at runtime.
 
@@ -87,8 +87,7 @@ def post( dictionary , address):
         # Do template substituiton
         posted = False
         body = template.substitute(dictionary)
-        print body
-
+        
         # Do post
         URL = urlparse.urlparse(address)
         connection = HTTPConnection(URL.netloc)
@@ -166,22 +165,13 @@ def tag(Id,host , user , password , db ):
 def run():
     """ Loops constantly and polls the data base for new messages every 5secs"""
     import time
-    import atexit
-
-    global lock
-    if os.path.isfile(lock):
-        logging.info("Another instance of Postify is running... shutting down")
-        sys.exit(1)
-
+    
     if not os.path.isfile(installLock): # checks to see if the service is installed
         logging.info("Postify has not been installed. type : postify --install")
         sys.exit(1)
         
-    #acquire lock
-    open(lock,'w').close()
     try:
         print "Running Postify Loop..."
-        atexit.register(lambda: os.remove(lock))
         while True:
             # do read() and post()
             address = settings["url"]  # I do not do URL validation
@@ -202,10 +192,10 @@ def run():
 def init():
     """ Module initialization routine """
     global settings
-    logging.info("Configuring Postify Module...")
     parser = ConfigParser()
     parser.read(configFile)
     settings = dict(parser.items("settings"))
+    settings["logfile"] = logFile
    
 def call( arguments ):
     """ Uses subprocess to invoke an external program; returns true or false signify success """
@@ -229,28 +219,42 @@ def main():
                       help = "Install Postify: configures the modem, and creates a Service that listens to it ")
     parser.add_option("-r", "--run", action = "store_true", dest = "run", help = "Run Postify..")
     parser.add_option("-c", "--clean", action = "store_true", dest = "clean", help = "Put humpty together again")
+    parser.add_option("-s", "--status", action = "store_true", dest = "status", help = "Check if Postify is Installed or Not Installed")
     options, args = parser.parse_args()
     init()
-    # Command Processing
+    parser.print_usage()
+        
     if options.install:
-        logging.info("About to commence install: ...")
         install()
 
     if options.run:
-        logging.info("About to run postify: ...")
         run()
 
     if options.clean:
-        logging.info("Putting humpty together again")
         clean()
+
+    if options.status:
+        status()
     
     
 # Execution functions
+def status():
+    """ Check if postify is installed or not """
+    if os.path.isfile(installLock):
+        print("Postify has been installed; Please use Postify --run to start postify")
+    else:
+        print("Not Installed yet; Please use Postify --install to install postify")
+
+
+        
+    
 def clean():
     """ Remove stuff from previous installations of postify"""
     import shutil
     try:
-        removed = False   
+        removed = False
+        logging.info("Removing install Lock file")
+        os.remove(installLock) # remove the lock file first
         logging.info("Trying to remove the Windows service")
         removed = call([daemon,"-c" , baseSettings, "-u"])
         if removed:
@@ -286,8 +290,8 @@ def install():
     
     logging.debug("Starting installation...")
     # 0.
-    if os.path.exists(lock) or os.path.exists(installLock):
-        logging.info("Postify is either running or has been previously installed..exiting")
+    if os.path.exists(installLock):
+        logging.info("Postify has been already been previously installed.")
         sys.exit(1)
     # 1.
     if not os.path.isdir(baseDir):
@@ -366,6 +370,7 @@ def preparedb():
     cursor.close()
     db.commit()
     db.close()
+    
 
 
 

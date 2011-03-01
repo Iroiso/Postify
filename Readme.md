@@ -40,14 +40,17 @@ $ Postify --help or Postify -h
 and you'll get a list of options for installing and running postify
 Type:
 
-$ Postify -i -r or Postify --install --run
+$ Postify -i or  Postify --install
+$ Postify -r or Postify --run
 
 This will install and run postify ( Note: you can type each command line switch to the same effect )
-to remove type ( make sure that postify is not running ):
+to remove type:
 
 $ Postify -c or Postify --clean   #Don't worry your data is still safe.
+$ Postify -s or Postify --status  #Find out the current status of postify
 
-## Settings
+
+## Settings and Configuration
 Postify uses the .ini file format. Look in the settings.ini file to see
 available options. They are pretty easy to understand.
 
@@ -56,11 +59,16 @@ available options. They are pretty easy to understand.
 - user, password, host, db -> these are parameters to the MySQLdb you want to use for postify
 - And that is it.. Happy Posting...
 
+One last thing, Before you install Postify; please plug your modem and starts its manufacturers
+software...
+
 
 ## Acknowledgements
 Postify would not have existed if not for this people and projects:
+
 + Aliyu Agama : For pushing my lazy ass to do this in the first place
 + Michael Cihar ( michael@cihar.com ) : for his amazing Gammu Project
 
 ## Author
-+ Iroiso < http://twitter.com/iroiso >
+
++ [Iroiso](http://twitter.com/iroiso)

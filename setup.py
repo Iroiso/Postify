@@ -38,7 +38,7 @@ import glob
 
 config = dict(script ="postify.py", dest_base = "Postify", uac_info = "requireAdministrator" )
 console = [config]
-files = [("", ["settings.cfg", "Readme.md",]), ("./bin", glob.glob("./bin/*.*")), ("./conf/modems", glob.glob("./conf/modems/*.ini")) ]
+files = [("", ["settings.cfg", "Readme.md",]), ("./bin", glob.glob("./bin/*.*")), ("./conf", glob.glob("./conf/*.*")) ]
 setup(
        data_files = files,
        version  = "0.5.0",

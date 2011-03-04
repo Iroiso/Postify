@@ -53,7 +53,7 @@ logging.basicConfig(level = logging.DEBUG, format = "%(asctime)s : %(funcName)s 
     
 # Module data
 __author__ = "Iroiso Ikpokonte <http://twitter.com/iroiso>"
-__version__ = "0.5.0"
+__version__ = "0.5.0.stable"
 __all__ = ["post","each","tag",]
 
 # Data Directory and synchronization files, Postified related stuff should be stored here regardless

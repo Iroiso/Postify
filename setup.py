@@ -38,11 +38,16 @@ import glob
 
 config = dict(script ="postify.py", dest_base = "Postify", uac_info = "requireAdministrator" )
 console = [config]
-files = [("", ["settings.cfg", "Readme.md",]), ("./bin", glob.glob("./bin/*.*")), ("./conf", glob.glob("./conf/*.*")) ]
+files = [("", ["settings.cfg", "Readme.md",]), ("./bin", glob.glob("./bin/*.*")), ("./conf/modems", glob.glob("./conf/modems/*.*")),
+         ("./conf/scripts", glob.glob("./conf/scripts/*.*"))]
 setup(
+       author = "Iroiso Ikpokonte",
+       author_email = "iroiso@live.com",
+       url = "http://github.com/iroiso/postify",
+       py_modules = ["postify"],
        data_files = files,
        version  = "0.5.0",
-       description = "Setup script for postify",
+       description = "Setup script for postify; Read Readme.md for details",
        name = "Postify",
        console = console,
 )
